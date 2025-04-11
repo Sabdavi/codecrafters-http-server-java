@@ -21,7 +21,7 @@ public class Main {
             Socket accept = serverSocket.accept();// Wait for connection from client.
             try(OutputStream outputStream = accept.getOutputStream()) {
                 PrintWriter writer = new PrintWriter(outputStream, true);
-                writer.println("HTTP/1.1 200 OK\\r\\n\\r\\n");
+                writer.println("HTTP/1.1 200 OK\r\n\r\n");
             }
 
             System.out.println("accepted new connection");
