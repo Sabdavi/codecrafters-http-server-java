@@ -6,25 +6,19 @@ import java.net.Socket;
 
 public class Main {
     public static void main(String[] args) {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
         System.out.println("Logs from your program will appear here!");
-
-        // Uncomment this block to pass the first stage
-        //
-        try {
-            ServerSocket serverSocket = new ServerSocket(4221);
-
-            // Since the tester restarts your program quite often, setting SO_REUSEADDR
-            // ensures that we don't run into 'Address already in use' errors
+        try (ServerSocket serverSocket = new ServerSocket(4221)) {
             serverSocket.setReuseAddress(true);
-
-            Socket accept = serverSocket.accept();// Wait for connection from client.
-            try(OutputStream outputStream = accept.getOutputStream()) {
-                PrintWriter writer = new PrintWriter(outputStream, true);
-                writer.println("HTTP/1.1 200 OK\r\n\r\n");
-            }
-
+            Socket clientSocket = serverSocket.accept();
             System.out.println("accepted new connection");
+            try (OutputStream outputStream = clientSocket.getOutputStream()) {
+                PrintWriter writer = new PrintWriter(outputStream, true);
+                writer.print("HTTP/1.1 200 OK\r\n");
+                writer.print("Content-Length: 0\r\n");
+                writer.print("\r\n");
+                writer.flush();
+            }
+            clientSocket.close();
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
 
