@@ -14,9 +14,7 @@ public class Main {
             try (OutputStream outputStream = clientSocket.getOutputStream()) {
                 PrintWriter writer = new PrintWriter(outputStream, true);
                 writer.print("HTTP/1.1 200 OK\r\n");
-                writer.print("Content-Length: 0\r\n");
                 writer.print("\r\n");
-                writer.flush();
             }
             clientSocket.close();
         } catch (IOException e) {
