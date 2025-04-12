@@ -1,25 +1,64 @@
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         System.out.println("Logs from your program will appear here!");
-        try (ServerSocket serverSocket = new ServerSocket(4221)) {
+        ServerSocket serverSocket = null;
+        try {
+            serverSocket = new ServerSocket(4221);
             serverSocket.setReuseAddress(true);
             Socket clientSocket = serverSocket.accept();
             System.out.println("accepted new connection");
-            try (OutputStream outputStream = clientSocket.getOutputStream()) {
-                PrintWriter writer = new PrintWriter(outputStream, true);
-                writer.print("HTTP/1.1 200 OK\r\n");
-                writer.print("\r\n");
+
+            String requestPath = readReadPath(clientSocket);
+            if (requestPath.equals("/")) {
+                sendResponse(clientSocket, 200);
+            } else {
+                sendResponse(clientSocket, 404);
             }
-            clientSocket.close();
         } catch (IOException e) {
+            serverSocket.close();
             System.out.println("IOException: " + e.getMessage());
 
         }
+    }
+
+    private static String readReadPath(Socket clientSocket) throws IOException {
+        List<String> requestData = readRequestData(clientSocket);
+        List<String> requestLine = Arrays.stream(requestData.getFirst().split(" ")).toList();
+        return requestLine.get(1);
+    }
+
+    private static List<String> readRequestData(Socket clientSocket) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        String inputLine;
+        List<String> requestLines = new ArrayList<>();
+        while (!(inputLine = reader.readLine()).isEmpty())
+            requestLines.add(inputLine);
+        return requestLines;
+    }
+
+    private static void sendResponse(Socket clientSocket, int statusCode) throws IOException {
+        String status = buildStatusString(statusCode);
+        OutputStream outputStream = clientSocket.getOutputStream();
+        PrintWriter writer = new PrintWriter(outputStream);
+        writer.write("HTTP/1.1 " + status + "\r\n");
+        writer.write("\r\n");
+        writer.flush();
+    }
+
+    private static String buildStatusString(int statusCode) {
+        if (statusCode == 200) {
+            return "200 OK";
+        } else if (statusCode == 404) {
+            return "404 Not Found";
+        }
+        return "";
     }
 }
