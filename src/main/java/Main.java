@@ -21,6 +21,8 @@ public class Main {
             if (requestPath.startsWith("/echo/")) {
                 String[] pathElements = requestPath.split("/");
                 sendResponse(clientSocket, 200,Optional.of(pathElements[2]));
+            } else {
+                sendResponse(clientSocket, 200, Optional.empty());
             }
         } catch (IOException e) {
             serverSocket.close();
