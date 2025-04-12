@@ -18,11 +18,14 @@ public class Main {
             System.out.println("accepted new connection");
 
             String requestPath = readReadPath(clientSocket);
+            if(requestPath.equals("/")) {
+                sendResponse(clientSocket, 200,Optional.empty());
+            }
             if (requestPath.startsWith("/echo/")) {
                 String[] pathElements = requestPath.split("/");
                 sendResponse(clientSocket, 200,Optional.of(pathElements[2]));
             } else {
-                sendResponse(clientSocket, 200, Optional.empty());
+                sendResponse(clientSocket, 404, Optional.empty());
             }
         } catch (IOException e) {
             serverSocket.close();
@@ -60,6 +63,7 @@ public class Main {
             writer.write(body.get());
             writer.write("\r\n");
         }
+        writer.write("\r\n");
         writer.flush();
     }
 
