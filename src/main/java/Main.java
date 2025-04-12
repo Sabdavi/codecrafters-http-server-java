@@ -55,8 +55,8 @@ public class Main {
         if(body.isPresent()) {
             String bodyContent = body.get();
             int length = bodyContent.getBytes().length;
-            writer.write("Content-Length:"+length+"\r\n");
-            writer.write("Content-Type:text/plain\r\n");
+            writer.write("Content-Length: "+length+"\r\n");
+            writer.write("Content-Type: text/plain\r\n");
             writer.write("\r\n");
             writer.write(body.get());
             writer.write("\r\n");
