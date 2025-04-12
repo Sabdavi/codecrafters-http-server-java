@@ -51,7 +51,6 @@ public class Main {
         OutputStream outputStream = clientSocket.getOutputStream();
         PrintWriter writer = new PrintWriter(outputStream);
         writer.write("HTTP/1.1 " + status + "\r\n");
-        writer.write("\r\n");
         if(body.isPresent()) {
             String bodyContent = body.get();
             int length = bodyContent.getBytes().length;
