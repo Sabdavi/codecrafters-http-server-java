@@ -5,6 +5,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 public class Main {
     public static void main(String[] args) throws IOException {
@@ -17,10 +18,11 @@ public class Main {
             System.out.println("accepted new connection");
 
             String requestPath = readReadPath(clientSocket);
-            if (requestPath.equals("/")) {
-                sendResponse(clientSocket, 200);
+            if (requestPath.startsWith("/echo/")) {
+                String[] pathElements = requestPath.split("/");
+                sendResponse(clientSocket, 200,Optional.of(pathElements[2]));
             } else {
-                sendResponse(clientSocket, 404);
+                sendResponse(clientSocket, 404, Optional.empty());
             }
         } catch (IOException e) {
             serverSocket.close();
@@ -44,12 +46,21 @@ public class Main {
         return requestLines;
     }
 
-    private static void sendResponse(Socket clientSocket, int statusCode) throws IOException {
+    private static void sendResponse(Socket clientSocket, int statusCode, Optional<String> body) throws IOException {
         String status = buildStatusString(statusCode);
         OutputStream outputStream = clientSocket.getOutputStream();
         PrintWriter writer = new PrintWriter(outputStream);
         writer.write("HTTP/1.1 " + status + "\r\n");
         writer.write("\r\n");
+        if(body.isPresent()) {
+            String bodyContent = body.get();
+            int length = bodyContent.getBytes().length;
+            writer.write("Content-Length: "+length+"\r\n");
+            writer.write("Content-Type: text/plain\r\n");
+            writer.write("\r\n");
+            writer.write(body.get());
+            writer.write("\r\n");
+        }
         writer.flush();
     }
 
