@@ -47,7 +47,7 @@ public class Main {
         for(int i=1 ; i < requestData.size() ; i++) {
             String header = requestData.get(i);
             String[] split = header.split(":");
-            headers.put(split[0], split[1]);
+            headers.put(split[0].trim(), split[1].trim());
         }
         return headers;
     }
