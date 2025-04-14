@@ -23,7 +23,7 @@ public class Main {
             if (requestPath.startsWith("/echo/")) {
                 String[] pathElements = requestPath.split("/");
                 sendResponse(clientSocket, 200,Optional.of(pathElements[2]));
-            } if (requestPath.startsWith("/user-agent/")) {
+            } if (requestPath.startsWith("/user-agent")) {
                 Map<String, String> headers = readHeaders(requestData);
                 sendResponse(clientSocket, 200, Optional.of(headers.get(USER_AGENT)));
             }
