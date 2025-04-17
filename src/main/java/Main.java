@@ -3,37 +3,69 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Main {
     private static final String USER_AGENT = "User-Agent";
+    private final static ExecutorService executorService = Executors.newCachedThreadPool();
+
     public static void main(String[] args) throws IOException {
         System.out.println("Logs from your program will appear here!");
-        ServerSocket serverSocket = null;
+        ServerSocket serverSocket;
         try {
             serverSocket = new ServerSocket(4221);
             serverSocket.setReuseAddress(true);
-            Socket clientSocket = serverSocket.accept();
-            System.out.println("accepted new connection");
 
-            List<String> requestData = readRequestData(clientSocket);
-            String requestPath = readReadPath(requestData);
-            if(requestPath.equals("/")) {
-                sendResponse(clientSocket, 200,Optional.empty());
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                processRequest(clientSocket);
             }
-            if (requestPath.startsWith("/echo/")) {
-                String[] pathElements = requestPath.split("/");
-                sendResponse(clientSocket, 200,Optional.of(pathElements[2]));
-            } if (requestPath.startsWith("/user-agent")) {
-                Map<String, String> headers = readHeaders(requestData);
-                sendResponse(clientSocket, 200, Optional.of(headers.get(USER_AGENT)));
-            }
-            else {
-                sendResponse(clientSocket, 404, Optional.empty());
-            }
-        } catch (IOException e) {
-            serverSocket.close();
-            System.out.println("IOException: " + e.getMessage());
 
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private static void processRequest(Socket clientSocket) {
+        executorService.execute(new RequestProcessingTask(clientSocket));
+    }
+
+    private static class RequestProcessingTask implements Runnable {
+
+        private final Socket clientSocket;
+
+        public RequestProcessingTask(Socket clientSocket) {
+            this.clientSocket = clientSocket;
+        }
+
+        @Override
+        public void run() {
+            System.out.println("executing request in thread : " + Thread.currentThread().getName());
+            try {
+
+                List<String> requestData = readRequestData(clientSocket);
+                String requestPath = readReadPath(requestData);
+                if (requestPath.equals("/")) {
+                    sendResponse(clientSocket, 200, Optional.empty());
+                } else if (requestPath.startsWith("/echo/")) {
+                    String[] pathElements = requestPath.split("/");
+                    sendResponse(clientSocket, 200, Optional.of(pathElements[2]));
+                } else if (requestPath.startsWith("/user-agent")) {
+                    Map<String, String> headers = readHeaders(requestData);
+                    sendResponse(clientSocket, 200, Optional.of(headers.get(USER_AGENT)));
+                } else {
+                    sendResponse(clientSocket, 404, Optional.empty());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }finally {
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
 
@@ -44,7 +76,7 @@ public class Main {
 
     private static Map<String, String> readHeaders(List<String> requestData) throws IOException {
         Map<String, String> headers = new HashMap<>();
-        for(int i=1 ; i < requestData.size() ; i++) {
+        for (int i = 1; i < requestData.size(); i++) {
             String header = requestData.get(i);
             String[] split = header.split(":");
             headers.put(split[0].trim(), split[1].trim());
@@ -66,10 +98,10 @@ public class Main {
         OutputStream outputStream = clientSocket.getOutputStream();
         PrintWriter writer = new PrintWriter(outputStream);
         writer.write("HTTP/1.1 " + status + "\r\n");
-        if(body.isPresent()) {
+        if (body.isPresent()) {
             String bodyContent = body.get();
             int length = bodyContent.getBytes().length;
-            writer.write("Content-Length: "+length+"\r\n");
+            writer.write("Content-Length: " + length + "\r\n");
             writer.write("Content-Type: text/plain\r\n");
             writer.write("\r\n");
             writer.write(body.get());
