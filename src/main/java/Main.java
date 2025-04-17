@@ -8,22 +8,23 @@ import java.util.concurrent.Executors;
 
 public class Main {
     private static final String USER_AGENT = "User-Agent";
-    private final static ExecutorService executorService = Executors.newCachedThreadPool();
+    private static final String CONTENT_TYPE = "Content-Type";
+    private static final String CONTENT_LENGTH = "Content-Length";
+    private static final String HTTP_VERSION = "HTTP/1.1";
+    private static final String CRLF = "\r\n";
+    private static final ExecutorService executorService = Executors.newCachedThreadPool();
+    private static final int PORT_NUMBER = 4221;
+
 
     public static void main(String[] args) throws IOException {
         System.out.println("Logs from your program will appear here!");
-        ServerSocket serverSocket;
-        try {
-            serverSocket = new ServerSocket(4221);
+        try (ServerSocket serverSocket = new ServerSocket(PORT_NUMBER)) {
             serverSocket.setReuseAddress(true);
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 processRequest(clientSocket);
             }
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
         }
     }
 
@@ -43,9 +44,9 @@ public class Main {
         public void run() {
             System.out.println("executing request in thread : " + Thread.currentThread().getName());
             try {
-
                 List<String> requestData = readRequestData(clientSocket);
-                String requestPath = readReadPath(requestData);
+                Map<String, String> requestLineElements = parseRequestLine(requestData);
+                String requestPath = requestLineElements.get("TARGET");
                 if (requestPath.equals("/")) {
                     sendResponse(clientSocket, 200, Optional.empty());
                 } else if (requestPath.startsWith("/echo/")) {
@@ -59,7 +60,7 @@ public class Main {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
-            }finally {
+            } finally {
                 try {
                     clientSocket.close();
                 } catch (IOException e) {
@@ -69,9 +70,13 @@ public class Main {
         }
     }
 
-    private static String readReadPath(List<String> requestData) throws IOException {
-        List<String> requestLine = Arrays.stream(requestData.getFirst().split(" ")).toList();
-        return requestLine.get(1);
+    private static Map<String, String> parseRequestLine(List<String> requestData) throws IOException {
+        Map<String, String> requestLine = new HashMap<>();
+        List<String> requestLineElements = Arrays.stream(requestData.getFirst().split(" ")).toList();
+        requestLine.put("METHOD", requestLineElements.get(0));
+        requestLine.put("TARGET", requestLineElements.get(1));
+        requestLine.put("VERSION", requestLineElements.get(2));
+        return requestLine;
     }
 
     private static Map<String, String> readHeaders(List<String> requestData) throws IOException {
@@ -87,27 +92,27 @@ public class Main {
     private static List<String> readRequestData(Socket clientSocket) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         String inputLine;
-        List<String> requestLines = new ArrayList<>();
+        List<String> requestData = new ArrayList<>();
         while (!(inputLine = reader.readLine()).isEmpty())
-            requestLines.add(inputLine);
-        return requestLines;
+            requestData.add(inputLine);
+        return requestData;
     }
 
     private static void sendResponse(Socket clientSocket, int statusCode, Optional<String> body) throws IOException {
         String status = buildStatusString(statusCode);
         OutputStream outputStream = clientSocket.getOutputStream();
         PrintWriter writer = new PrintWriter(outputStream);
-        writer.write("HTTP/1.1 " + status + "\r\n");
+        writer.write(String.format("%s %s %s", HTTP_VERSION, status, CRLF));
         if (body.isPresent()) {
             String bodyContent = body.get();
             int length = bodyContent.getBytes().length;
-            writer.write("Content-Length: " + length + "\r\n");
-            writer.write("Content-Type: text/plain\r\n");
-            writer.write("\r\n");
+            writer.write(String.format("%s : %d %s", CONTENT_LENGTH, length, CRLF));
+            writer.write(String.format("%s : text/plain %s", CONTENT_TYPE, CRLF));
+            writer.write(CRLF);
             writer.write(body.get());
-            writer.write("\r\n");
+            writer.write(CRLF);
         }
-        writer.write("\r\n");
+        writer.write(CRLF);
         writer.flush();
     }
 
