@@ -10,6 +10,8 @@ public class Main {
     private static final String USER_AGENT = "User-Agent";
     private static final String CONTENT_TYPE = "Content-Type";
     private static final String CONTENT_LENGTH = "Content-Length";
+    private static final String TEXT_CONTENT_TYPE = "text/plain";
+    private static final String BINARY_CONTENT_TYPE = "application/octet-stream";
     private static final String HTTP_VERSION = "HTTP/1.1";
     private static final String CRLF = "\r\n";
     private static final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -23,56 +25,28 @@ public class Main {
 
 
     public static void main(String[] args) throws IOException {
-        parseEnvs(args);
-        createFileDirectory(FILE_DIR);
-        createIntialFile(FILE_DIR, "foo");
-        System.out.printf("use %s as file directory%n", FILE_DIR);
-
         try (ServerSocket serverSocket = new ServerSocket(PORT_NUMBER)) {
             serverSocket.setReuseAddress(true);
-
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                processRequest(clientSocket);
+                processRequest(clientSocket, args);
             }
         }
     }
 
-    private static void createFileDirectory(String fileDir) throws IOException {
-        File dir = new File(fileDir);
-        if (!dir.exists() && !dir.mkdirs()) {
-                throw new IOException("Failed to create directories: " + fileDir);
-            }
-    }
 
-    private static void createIntialFile(String fileDir, String fileName) throws IOException {
-        File file = new File(String.format("%s%s",fileDir, fileName));
-        if (file.exists()) {
-            file.delete();
-        }
-        try(BufferedWriter writer = new BufferedWriter(new FileWriter(file, true))) {
-            writer.write("Hello, World!");
-        }
-    }
-
-    private static void parseEnvs(String[] args) {
-        if (args.length == 0) {
-            throw new IllegalArgumentException("No file directory provided");
-        } else {
-            FILE_DIR = args[0];
-        }
-    }
-
-    private static void processRequest(Socket clientSocket) {
-        executorService.execute(new RequestProcessingTask(clientSocket));
+    private static void processRequest(Socket clientSocket, String[] args) {
+        executorService.execute(new RequestProcessingTask(clientSocket, args));
     }
 
     private static class RequestProcessingTask implements Runnable {
 
         private final Socket clientSocket;
+        private final String[] args;
 
-        public RequestProcessingTask(Socket clientSocket) {
+        public RequestProcessingTask(Socket clientSocket, String[] args) {
             this.clientSocket = clientSocket;
+            this.args = args;
         }
 
         @Override
@@ -83,18 +57,18 @@ public class Main {
                 Map<String, String> requestLineElements = parseRequestLine(requestData);
                 String requestPath = requestLineElements.get("TARGET");
                 if (requestPath.equals("/")) {
-                    sendResponse(clientSocket, 200, Optional.empty());
+                    sendResponse(clientSocket, TEXT_CONTENT_TYPE, 200, Optional.empty());
                 } else if (requestPath.startsWith("/echo/")) {
                     String[] pathElements = requestPath.split("/");
-                    sendResponse(clientSocket, 200, Optional.of(pathElements[2]));
+                    sendResponse(clientSocket, TEXT_CONTENT_TYPE, 200, Optional.of(pathElements[2]));
                 } else if (requestPath.startsWith("/user-agent")) {
                     Map<String, String> headers = readHeaders(requestData);
-                    sendResponse(clientSocket, 200, Optional.of(headers.get(USER_AGENT)));
+                    sendResponse(clientSocket, TEXT_CONTENT_TYPE, 200, Optional.of(headers.get(USER_AGENT)));
                 } else if (requestPath.startsWith("/files/")) {
-                    processFileRequest(requestData);
+                    processFileRequest(requestData, args);
                 }
                 else {
-                    sendResponse(clientSocket, 404, Optional.empty());
+                    sendResponse(clientSocket, TEXT_CONTENT_TYPE, 404, Optional.empty());
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -107,14 +81,15 @@ public class Main {
             }
         }
 
-        private void processFileRequest(List<String> requestData) throws IOException {
+        private void processFileRequest(List<String> requestData, String[] args) throws IOException {
+            parseEnvs(args);
             String target = parseRequestLine(requestData).get(TARGET_KEY);
             String[] split = target.split("/");
             String fileName = split[2];
+            File file = new File(String.format("%s%s",FILE_DIR, fileName));
             String content;
 
-            if(fileName.equals("foo")) {
-                File file = new File(String.format("%s%s",FILE_DIR, fileName));
+            if(file.exists()) {
                 try(BufferedReader bufferedReader = new BufferedReader(new FileReader(file))) {
                     String inputLine;
                     List<String> inputLines = new ArrayList<>();
@@ -123,10 +98,10 @@ public class Main {
                     }
                     content = String.join("", inputLines);
                 }
-                sendResponse(clientSocket, HTTP_STATUS_OK, Optional.of(content) );
+                sendResponse(clientSocket, BINARY_CONTENT_TYPE, HTTP_STATUS_OK, Optional.of(content) );
             }
             else {
-                sendResponse(clientSocket, HTTP_STATUS_NOT_FOUND, Optional.empty() );
+                sendResponse(clientSocket, BINARY_CONTENT_TYPE, HTTP_STATUS_NOT_FOUND, Optional.empty() );
             }
         }
 
@@ -158,16 +133,16 @@ public class Main {
             return requestData;
         }
 
-        private static void sendResponse(Socket clientSocket, int statusCode, Optional<String> body) throws IOException {
+        private static void sendResponse(Socket clientSocket, String contentType, int statusCode, Optional<String> body) throws IOException {
             String status = buildStatusString(statusCode);
             OutputStream outputStream = clientSocket.getOutputStream();
             PrintWriter writer = new PrintWriter(outputStream);
-            writer.write(String.format("%s %s %s", HTTP_VERSION, status, CRLF));
+            writer.write(String.format("%s %s%s", HTTP_VERSION, status, CRLF));
             if (body.isPresent()) {
                 String bodyContent = body.get();
                 int length = bodyContent.getBytes().length;
-                writer.write(String.format("%s : %d %s", CONTENT_LENGTH, length, CRLF));
-                writer.write(String.format("%s : text/plain %s", CONTENT_TYPE, CRLF));
+                writer.write(String.format("%s:%d%s", CONTENT_LENGTH, length, CRLF));
+                writer.write(String.format("%s:%s%s", CONTENT_TYPE, contentType, CRLF));
                 writer.write(CRLF);
                 writer.write(body.get());
                 writer.write(CRLF);
@@ -183,6 +158,14 @@ public class Main {
                 return "404 Not Found";
             }
             return "";
+        }
+
+        private static void parseEnvs(String[] args) {
+            if (args.length == 0) {
+                throw new IllegalArgumentException("No file directory provided");
+            } else {
+                FILE_DIR = args[1];
+            }
         }
     }
 }
