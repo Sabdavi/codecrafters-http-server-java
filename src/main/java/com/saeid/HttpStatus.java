@@ -3,7 +3,7 @@ package com.saeid;
 public enum HttpStatus {
     OK(200, "OK"),
     CREATED(201, "Created"),
-    NOT_FOUND(401, "Not Found");
+    NOT_FOUND(404, "Not Found");
 
     private static final HttpStatus[] VALUES;
 
