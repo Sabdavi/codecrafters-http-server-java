@@ -49,18 +49,17 @@ public class RequestProcessingTask implements Runnable {
     }
 
     private String getContentEncoding(Map<String, String> requestHeaders) {
-        String requestedEncoding = requestHeaders.get(ACCEPT_ENCODING);
 
-        if (requestedEncoding == null) {
+        if(requestHeaders.get(ACCEPT_ENCODING) == null) {
             return null;
         }
+        List<String> requestedEncodings = Arrays.stream(requestHeaders.get(ACCEPT_ENCODING).split(",")).map(String::trim).toList();
 
         for (String supported : SUPPORTED_ENCODINGS) {
-            if (requestedEncoding.contains(supported)) {
+            if (requestedEncodings.contains(supported)) {
                 return supported;
             }
         }
-
         return null;
     }
 
@@ -76,7 +75,7 @@ public class RequestProcessingTask implements Runnable {
 
     private Map<String, String> parseHeaders(String requestHeaders) {
         Map<String, String> requestHeardMap = new HashMap<>();
-        Arrays.stream(requestHeaders.split(",")).forEach(header -> {
+        Arrays.stream(requestHeaders.split("\n")).forEach(header -> {
             String[] split = header.split(":");
             requestHeardMap.put(split[0].trim(), split[1].trim());
         });
@@ -180,7 +179,7 @@ public class RequestProcessingTask implements Runnable {
             String header = requestData.get(i).trim();
             headers.append(header);
             if (i < endIndex - 1) {
-                headers.append(",");
+                headers.append("\n");
             }
         }
         requestDataMap.put(REQUEST_HEADERS, headers.toString());
