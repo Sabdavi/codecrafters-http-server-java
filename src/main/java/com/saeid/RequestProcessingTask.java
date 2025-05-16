@@ -23,18 +23,19 @@ public class RequestProcessingTask implements Runnable {
             Map<String, String> requestData = readRequestData(clientSocket);
             Map<String, String> requestLineElements = parseRequestLine(requestData.get(REQUEST_LINE));
             Map<String, String> requestHeaders = parseHeaders(requestData.get(REQUEST_HEADERS));
+            String body = requestData.get(REQUEST_BODY);
             String requestPath = requestLineElements.get(TARGET_KEY);
             if (requestPath.equals("/")) {
-                sendResponse(clientSocket, TEXT_CONTENT_TYPE, HttpStatus.OK, Optional.empty());
+                sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.OK, Optional.empty());
             } else if (requestPath.startsWith("/echo/")) {
                 String[] pathElements = requestPath.split("/");
-                sendResponse(clientSocket, TEXT_CONTENT_TYPE, HttpStatus.OK, Optional.of(pathElements[2]));
+                sendResponse(clientSocket, requestHeaders, DEFAULT_CONTENT_TYPE, HttpStatus.OK, Optional.of(pathElements[2]));
             } else if (requestPath.startsWith("/user-agent")) {
-                sendResponse(clientSocket, TEXT_CONTENT_TYPE, HttpStatus.OK, Optional.of(requestHeaders.get(USER_AGENT)));
+                sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.OK, Optional.of(requestHeaders.get(USER_AGENT)));
             } else if (requestPath.startsWith("/files/")) {
-                processFileRequest(requestData, args);
+                processFileRequest(requestLineElements, requestHeaders, body, args);
             } else {
-                sendResponse(clientSocket, TEXT_CONTENT_TYPE, HttpStatus.NOT_FOUND, Optional.empty());
+                sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.NOT_FOUND, Optional.empty());
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -47,12 +48,29 @@ public class RequestProcessingTask implements Runnable {
         }
     }
 
-    private void processFileRequest(Map<String, String> requestData, String[] args) throws IOException {
-        String method = parseRequestLine(requestData.get(REQUEST_LINE)).get(METHOD_KEY);
+    private String getContentEncoding(Map<String, String> requestHeaders) {
+        String requestedEncoding = requestHeaders.get(ACCEPT_ENCODING);
+
+        if (requestedEncoding == null) {
+            return null;
+        }
+
+        for (String supported : SUPPORTED_ENCODINGS) {
+            if (requestedEncoding.contains(supported)) {
+                return supported;
+            }
+        }
+
+        return null;
+    }
+
+    private void processFileRequest(Map<String, String> requestLineElements, Map<String, String> requestHeaders, String body, String[] args) throws IOException {
+        String method = requestLineElements.get(METHOD_KEY);
+        String target = requestLineElements.get(TARGET_KEY);
         if (method.equals("GET")) {
-            processFileReadRequest(requestData, args);
+            processFileReadRequest(target, requestHeaders, args);
         } else if (method.equals("POST")) {
-            processFileWriteRequest(requestData, args);
+            processFileWriteRequest(target, requestHeaders, body, args);
         }
     }
 
@@ -65,9 +83,8 @@ public class RequestProcessingTask implements Runnable {
         return requestHeardMap;
     }
 
-    private void processFileReadRequest(Map<String, String> requestData, String[] args) throws IOException {
+    private void processFileReadRequest(String target, Map<String, String> requestHeaders, String[] args) throws IOException {
         parseEnvs(args);
-        String target = parseRequestLine(requestData.get(REQUEST_LINE)).get(TARGET_KEY);
         String[] split = target.split("/");
         String fileName = split[2];
         File file = new File(String.format("%s%s", FILE_DIR, fileName));
@@ -82,16 +99,14 @@ public class RequestProcessingTask implements Runnable {
                 }
                 content = String.join("", inputLines);
             }
-            sendResponse(clientSocket, BINARY_CONTENT_TYPE, HttpStatus.OK, Optional.of(content));
+            sendResponse(clientSocket, requestHeaders, BINARY_CONTENT_TYPE, HttpStatus.OK, Optional.of(content));
         } else {
-            sendResponse(clientSocket, BINARY_CONTENT_TYPE, HttpStatus.NOT_FOUND, Optional.empty());
+            sendResponse(clientSocket, requestHeaders, BINARY_CONTENT_TYPE, HttpStatus.NOT_FOUND, Optional.empty());
         }
     }
 
-    private void processFileWriteRequest(Map<String, String> requestData, String[] args) throws IOException {
+    private void processFileWriteRequest(String target, Map<String, String> requestHeaders, String content, String[] args) throws IOException {
         parseEnvs(args);
-        String content = requestData.get(REQUEST_BODY);
-        String target = parseRequestLine(requestData.get(REQUEST_LINE)).get(TARGET_KEY);
         String[] split = target.split("/");
         String fileName = split[2];
 
@@ -109,7 +124,7 @@ public class RequestProcessingTask implements Runnable {
             writer.flush();
         }
 
-        sendResponse(clientSocket, BINARY_CONTENT_TYPE, HttpStatus.CREATED, Optional.of(content));
+        sendResponse(clientSocket, requestHeaders, BINARY_CONTENT_TYPE, HttpStatus.CREATED, Optional.of(content));
     }
 
     private  Map<String, String> parseRequestLine(String requestLine) {
@@ -171,15 +186,19 @@ public class RequestProcessingTask implements Runnable {
         requestDataMap.put(REQUEST_HEADERS, headers.toString());
     }
 
-    private  void sendResponse(Socket clientSocket, String contentType, HttpStatus httpStatus, Optional<String> body) throws IOException {
+    private  void sendResponse(Socket clientSocket, Map<String, String> requestHeaders, String contentType, HttpStatus httpStatus, Optional<String> body) throws IOException {
         OutputStream outputStream = clientSocket.getOutputStream();
         PrintWriter writer = new PrintWriter(outputStream);
+        String contentEncoding = getContentEncoding(requestHeaders);
         writer.write(String.format("%s %s%s", HTTP_VERSION, httpStatus.toString(), CRLF));
         if (body.isPresent()) {
             String bodyContent = body.get();
             int length = bodyContent.getBytes().length;
             writer.write(String.format("%s:%d%s", CONTENT_LENGTH, length, CRLF));
             writer.write(String.format("%s:%s%s", CONTENT_TYPE, contentType, CRLF));
+            if(contentEncoding != null) {
+                writer.write(String.format("%s:%s%s", CONTENT_ENCODING, contentEncoding, CRLF));
+            }
             writer.write(CRLF);
             writer.write(body.get());
             writer.write(CRLF);

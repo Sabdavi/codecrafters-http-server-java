@@ -10,7 +10,10 @@ public class Main {
     public static final String USER_AGENT = "User-Agent";
     public static final String CONTENT_TYPE = "Content-Type";
     public static final String CONTENT_LENGTH = "Content-Length";
-    static final String TEXT_CONTENT_TYPE = "text/plain";
+    public static final String CONTENT_ENCODING = "Content-Encoding";
+    public static final String ACCEPT_ENCODING = "Accept-Encoding";
+    static final String CONTENT_ENCODING_DEFAULT = "text/plain";
+    static final String DEFAULT_CONTENT_TYPE = "text/plain";
     public static final String BINARY_CONTENT_TYPE = "application/octet-stream";
     public static final String HTTP_VERSION = "HTTP/1.1";
     public static final String CRLF = "\r\n";
@@ -24,6 +27,7 @@ public class Main {
     public static final String REQUEST_HEADERS = "headers";
     public static final String REQUEST_BODY = "body";
     public static final String CONTENT_LENGTH_HEADER = "Content-Length: ";
+    public static final String[] SUPPORTED_ENCODINGS = new String[]{"gzip"};
 
 
     public static void main(String[] args) throws IOException {
