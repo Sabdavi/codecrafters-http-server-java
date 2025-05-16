@@ -2,6 +2,7 @@ package com.saeid;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static com.saeid.Main.*;
@@ -186,24 +187,40 @@ public class RequestProcessingTask implements Runnable {
     }
 
     private  void sendResponse(Socket clientSocket, Map<String, String> requestHeaders, String contentType, HttpStatus httpStatus, Optional<String> body) throws IOException {
-        OutputStream outputStream = clientSocket.getOutputStream();
-        PrintWriter writer = new PrintWriter(outputStream);
+        OutputStream rawOutput = clientSocket.getOutputStream();
+        BufferedOutputStream outputStream = new BufferedOutputStream(rawOutput);
+        PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8), false);
+
         String contentEncoding = getContentEncoding(requestHeaders);
+
         writer.write(String.format("%s %s%s", HTTP_VERSION, httpStatus.toString(), CRLF));
+
         if (body.isPresent()) {
-            String bodyContent = body.get();
-            int length = bodyContent.getBytes().length;
-            writer.write(String.format("%s:%d%s", CONTENT_LENGTH, length, CRLF));
-            writer.write(String.format("%s:%s%s", CONTENT_TYPE, contentType, CRLF));
-            if(contentEncoding != null) {
-                writer.write(String.format("%s:%s%s", CONTENT_ENCODING, contentEncoding, CRLF));
+            byte[] responseBody;
+            boolean isGzip = contentEncoding != null && contentEncoding.equalsIgnoreCase("gzip");
+
+            if (isGzip) {
+                responseBody = GzipUtils.compress(body.get());
+            } else {
+                responseBody = body.get().getBytes(StandardCharsets.UTF_8);
+            }
+
+            writer.write(String.format("%s: %d%s", CONTENT_LENGTH, responseBody.length, CRLF));
+            writer.write(String.format("%s: %s%s", CONTENT_TYPE, contentType, CRLF));
+            if (isGzip) {
+                writer.write(String.format("%s: %s%s", CONTENT_ENCODING, contentEncoding, CRLF));
             }
             writer.write(CRLF);
-            writer.write(body.get());
+            writer.flush();
+
+            outputStream.write(responseBody);
+            outputStream.flush();
+        } else {
+            writer.write(String.format("%s: 0%s", CONTENT_LENGTH, CRLF));
+            writer.write(String.format("%s: %s%s", CONTENT_TYPE, contentType, CRLF));
             writer.write(CRLF);
+            writer.flush();
         }
-        writer.write(CRLF);
-        writer.flush();
     }
 
     private static void parseEnvs(String[] args) {
