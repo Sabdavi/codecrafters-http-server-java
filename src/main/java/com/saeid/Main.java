@@ -12,6 +12,8 @@ public class Main {
     public static final String CONTENT_LENGTH = "Content-Length";
     public static final String CONTENT_ENCODING = "Content-Encoding";
     public static final String ACCEPT_ENCODING = "Accept-Encoding";
+    public static final String CONNECTION = "Connection";
+    public static final String CONNECTION_CLOSE = "close";
     static final String CONTENT_ENCODING_DEFAULT = "text/plain";
     static final String DEFAULT_CONTENT_TYPE = "text/plain";
     public static final String BINARY_CONTENT_TYPE = "application/octet-stream";
@@ -35,6 +37,7 @@ public class Main {
             serverSocket.setReuseAddress(true);
             while (true) {
                 Socket clientSocket = serverSocket.accept();
+                System.out.println("Connection is stablished");
                 processRequest(clientSocket, args);
             }
         }

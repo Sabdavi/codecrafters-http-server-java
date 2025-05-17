@@ -20,28 +20,43 @@ public class RequestProcessingTask implements Runnable {
     @Override
     public void run() {
         System.out.println("executing request in thread : " + Thread.currentThread().getName());
-        try {
-            Map<String, String> requestData = readRequestData(clientSocket);
-            Map<String, String> requestLineElements = parseRequestLine(requestData.get(REQUEST_LINE));
-            Map<String, String> requestHeaders = parseHeaders(requestData.get(REQUEST_HEADERS));
-            String body = requestData.get(REQUEST_BODY);
-            String requestPath = requestLineElements.get(TARGET_KEY);
-            if (requestPath.equals("/")) {
-                sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.OK, Optional.empty());
-            } else if (requestPath.startsWith("/echo/")) {
-                String[] pathElements = requestPath.split("/");
-                sendResponse(clientSocket, requestHeaders, DEFAULT_CONTENT_TYPE, HttpStatus.OK, Optional.of(pathElements[2]));
-            } else if (requestPath.startsWith("/user-agent")) {
-                sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.OK, Optional.of(requestHeaders.get(USER_AGENT)));
-            } else if (requestPath.startsWith("/files/")) {
-                processFileRequest(requestLineElements, requestHeaders, body, args);
-            } else {
-                sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.NOT_FOUND, Optional.empty());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
+        while(!clientSocket.isClosed()) {
             try {
+                Map<String, String> requestData = readRequestData(clientSocket);
+                if (requestData != null && !requestData.isEmpty()) {
+                    Map<String, String> requestLineElements = parseRequestLine(requestData.get(REQUEST_LINE));
+                    Map<String, String> requestHeaders = parseHeaders(requestData.get(REQUEST_HEADERS));
+                    String body = requestData.get(REQUEST_BODY);
+                    String requestPath = requestLineElements.get(TARGET_KEY);
+                    if (requestPath.equals("/")) {
+                        sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.OK, Optional.empty());
+                    } else if (requestPath.startsWith("/echo/")) {
+                        String[] pathElements = requestPath.split("/");
+                        sendResponse(clientSocket, requestHeaders, DEFAULT_CONTENT_TYPE, HttpStatus.OK, Optional.of(pathElements[2]));
+                    } else if (requestPath.startsWith("/user-agent")) {
+                        sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.OK, Optional.of(requestHeaders.get(USER_AGENT)));
+                    } else if (requestPath.startsWith("/files/")) {
+                        processFileRequest(requestLineElements, requestHeaders, body, args);
+                    } else {
+                        sendResponse(clientSocket, requestHeaders, CONTENT_ENCODING_DEFAULT, HttpStatus.NOT_FOUND, Optional.empty());
+                    }
+                    closeConnectionIfNecessary(requestHeaders, clientSocket);
+                }
+            } catch (IOException e) {
+                try {
+                    clientSocket.close();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void closeConnectionIfNecessary(Map<String, String> requestHeaders, Socket clientSocket) {
+        if(requestHeaders.containsKey(CONNECTION) && requestHeaders.get(CONNECTION).equals(CONNECTION_CLOSE)) {
+            try {
+                System.out.println("Closing connection");
                 clientSocket.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -151,6 +166,10 @@ public class RequestProcessingTask implements Runnable {
             char[] content = new char[contentLength];
             int read = reader.read(content, 0, contentLength);
             requestData.add(new String(content, 0, read));
+        }
+
+        if(requestData.isEmpty()) {
+            return Collections.emptyMap();
         }
         return parserqguestdata(requestData, contentLength);
     }
