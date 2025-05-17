@@ -20,7 +20,7 @@ public class RequestProcessingTask implements Runnable {
     @Override
     public void run() {
         System.out.println("executing request in thread : " + Thread.currentThread().getName());
-        while(!clientSocket.isClosed()) {
+        while (!clientSocket.isClosed()) {
             try {
                 Map<String, String> requestData = readRequestData(clientSocket);
                 if (requestData != null && !requestData.isEmpty()) {
@@ -54,7 +54,7 @@ public class RequestProcessingTask implements Runnable {
     }
 
     private void closeConnectionIfNecessary(Map<String, String> requestHeaders, Socket clientSocket) {
-        if(requestHeaders.containsKey(CONNECTION) && requestHeaders.get(CONNECTION).equals(CONNECTION_CLOSE)) {
+        if (requestHeaders.containsKey(CONNECTION) && requestHeaders.get(CONNECTION).equals(CONNECTION_CLOSE)) {
             try {
                 System.out.println("Closing connection");
                 clientSocket.close();
@@ -66,7 +66,7 @@ public class RequestProcessingTask implements Runnable {
 
     private String getContentEncoding(Map<String, String> requestHeaders) {
 
-        if(requestHeaders.get(ACCEPT_ENCODING) == null) {
+        if (requestHeaders.get(ACCEPT_ENCODING) == null) {
             return null;
         }
         List<String> requestedEncodings = Arrays.stream(requestHeaders.get(ACCEPT_ENCODING).split(",")).map(String::trim).toList();
@@ -142,7 +142,7 @@ public class RequestProcessingTask implements Runnable {
         sendResponse(clientSocket, requestHeaders, BINARY_CONTENT_TYPE, HttpStatus.CREATED, Optional.of(content));
     }
 
-    private  Map<String, String> parseRequestLine(String requestLine) {
+    private Map<String, String> parseRequestLine(String requestLine) {
         Map<String, String> requestLineMap = new HashMap<>();
         List<String> requestLineElements = Arrays.stream(requestLine.split(" ")).toList();
         requestLineMap.put(METHOD_KEY, requestLineElements.get(0));
@@ -151,7 +151,7 @@ public class RequestProcessingTask implements Runnable {
         return requestLineMap;
     }
 
-    private  Map<String, String> readRequestData(Socket clientSocket) throws IOException {
+    private Map<String, String> readRequestData(Socket clientSocket) throws IOException {
         int contentLength = 0;
         List<String> requestData = new ArrayList<>();
         BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -168,13 +168,13 @@ public class RequestProcessingTask implements Runnable {
             requestData.add(new String(content, 0, read));
         }
 
-        if(requestData.isEmpty()) {
+        if (requestData.isEmpty()) {
             return Collections.emptyMap();
         }
         return parserqguestdata(requestData, contentLength);
     }
 
-    private  Map<String, String> parserqguestdata(List<String> requestData, int contentLength) {
+    private Map<String, String> parserqguestdata(List<String> requestData, int contentLength) {
         Map<String, String> requestDataMap = new HashMap<>();
         requestDataMap.put(REQUEST_LINE, requestData.getFirst());
         if (contentLength > 0) {
@@ -186,7 +186,7 @@ public class RequestProcessingTask implements Runnable {
         return requestDataMap;
     }
 
-    private  void addHeaders(List<String> requestData, Map<String, String> requestDataMap, boolean hasBody) {
+    private void addHeaders(List<String> requestData, Map<String, String> requestDataMap, boolean hasBody) {
         int endIndex;
         if (hasBody) {
             endIndex = requestData.size() - 1;
@@ -205,7 +205,7 @@ public class RequestProcessingTask implements Runnable {
         requestDataMap.put(REQUEST_HEADERS, headers.toString());
     }
 
-    private  void sendResponse(Socket clientSocket, Map<String, String> requestHeaders, String contentType, HttpStatus httpStatus, Optional<String> body) throws IOException {
+    private void sendResponse(Socket clientSocket, Map<String, String> requestHeaders, String contentType, HttpStatus httpStatus, Optional<String> body) throws IOException {
         OutputStream rawOutput = clientSocket.getOutputStream();
         BufferedOutputStream outputStream = new BufferedOutputStream(rawOutput);
         PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8), false);
@@ -213,6 +213,9 @@ public class RequestProcessingTask implements Runnable {
         String contentEncoding = getContentEncoding(requestHeaders);
 
         writer.write(String.format("%s %s%s", HTTP_VERSION, httpStatus.toString(), CRLF));
+        if (requestHeaders.containsKey(CONNECTION) && requestHeaders.get(CONNECTION).equals(CONNECTION_CLOSE)) {
+            writer.write(String.format("%s: %s%s", CONNECTION, CONNECTION_CLOSE, CRLF));
+        }
 
         if (body.isPresent()) {
             byte[] responseBody;
