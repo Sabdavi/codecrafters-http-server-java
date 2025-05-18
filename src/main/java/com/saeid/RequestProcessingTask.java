@@ -1,16 +1,21 @@
 package com.saeid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
+import static com.saeid.HttpHeaders.*;
 import static com.saeid.Main.*;
 
 public class RequestProcessingTask implements Runnable {
 
     private final Socket clientSocket;
     private final String[] args;
+    private final static Logger logger = LoggerFactory.getLogger(RequestProcessingTask.class);
 
     public RequestProcessingTask(Socket clientSocket, String[] args) {
         this.clientSocket = clientSocket;
@@ -19,7 +24,7 @@ public class RequestProcessingTask implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("executing request in thread : " + Thread.currentThread().getName());
+        logger.info("executing request in thread : {}", Thread.currentThread().getName());
         while (!clientSocket.isClosed()) {
             try {
                 Map<String, String> requestData = readRequestData(clientSocket);
@@ -56,7 +61,7 @@ public class RequestProcessingTask implements Runnable {
     private void closeConnectionIfNecessary(Map<String, String> requestHeaders, Socket clientSocket) {
         if (requestHeaders.containsKey(CONNECTION) && requestHeaders.get(CONNECTION).equals(CONNECTION_CLOSE)) {
             try {
-                System.out.println("Closing connection");
+                logger.info("Closing connection");
                 clientSocket.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -158,8 +163,8 @@ public class RequestProcessingTask implements Runnable {
         String inputLine;
         while ((inputLine = reader.readLine()) != null && !inputLine.isEmpty()) {
             requestData.add(inputLine);
-            if (inputLine.startsWith(CONTENT_LENGTH_HEADER)) {
-                contentLength = Integer.parseInt(inputLine.substring(CONTENT_LENGTH_HEADER.length()));
+            if (inputLine.startsWith(CONTENT_LENGTH)) {
+                contentLength = Integer.parseInt(inputLine.substring(CONTENT_LENGTH.length()+2));
             }
         }
         if (contentLength > 0) {
@@ -171,10 +176,10 @@ public class RequestProcessingTask implements Runnable {
         if (requestData.isEmpty()) {
             return Collections.emptyMap();
         }
-        return parserqguestdata(requestData, contentLength);
+        return parseRequestData(requestData, contentLength);
     }
 
-    private Map<String, String> parserqguestdata(List<String> requestData, int contentLength) {
+    private Map<String, String> parseRequestData(List<String> requestData, int contentLength) {
         Map<String, String> requestDataMap = new HashMap<>();
         requestDataMap.put(REQUEST_LINE, requestData.getFirst());
         if (contentLength > 0) {
@@ -208,13 +213,11 @@ public class RequestProcessingTask implements Runnable {
     private void sendResponse(Socket clientSocket, Map<String, String> requestHeaders, String contentType, HttpStatus httpStatus, Optional<String> body) throws IOException {
         OutputStream rawOutput = clientSocket.getOutputStream();
         BufferedOutputStream outputStream = new BufferedOutputStream(rawOutput);
-        PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8), false);
-
         String contentEncoding = getContentEncoding(requestHeaders);
 
-        writer.write(String.format("%s %s%s", HTTP_VERSION, httpStatus.toString(), CRLF));
+        outputStream.write(String.format("%s %s%s", HTTP_VERSION, httpStatus.toString(), CRLF).getBytes());
         if (requestHeaders.containsKey(CONNECTION) && requestHeaders.get(CONNECTION).equals(CONNECTION_CLOSE)) {
-            writer.write(String.format("%s: %s%s", CONNECTION, CONNECTION_CLOSE, CRLF));
+            outputStream.write(String.format("%s: %s%s", CONNECTION, CONNECTION_CLOSE, CRLF).getBytes());
         }
 
         if (body.isPresent()) {
@@ -227,21 +230,21 @@ public class RequestProcessingTask implements Runnable {
                 responseBody = body.get().getBytes(StandardCharsets.UTF_8);
             }
 
-            writer.write(String.format("%s: %d%s", CONTENT_LENGTH, responseBody.length, CRLF));
-            writer.write(String.format("%s: %s%s", CONTENT_TYPE, contentType, CRLF));
+            outputStream.write(String.format("%s: %d%s", CONTENT_LENGTH, responseBody.length, CRLF).getBytes());
+            outputStream.write(String.format("%s: %s%s", CONTENT_TYPE, contentType, CRLF).getBytes());
             if (isGzip) {
-                writer.write(String.format("%s: %s%s", CONTENT_ENCODING, contentEncoding, CRLF));
+                outputStream.write(String.format("%s: %s%s", CONTENT_ENCODING, contentEncoding, CRLF).getBytes());
             }
-            writer.write(CRLF);
-            writer.flush();
+            outputStream.write(CRLF.getBytes());
+            outputStream.flush();
 
             outputStream.write(responseBody);
             outputStream.flush();
         } else {
-            writer.write(String.format("%s: 0%s", CONTENT_LENGTH, CRLF));
-            writer.write(String.format("%s: %s%s", CONTENT_TYPE, contentType, CRLF));
-            writer.write(CRLF);
-            writer.flush();
+            outputStream.write(String.format("%s: 0%s", CONTENT_LENGTH, CRLF).getBytes());
+            outputStream.write(String.format("%s: %s%s", CONTENT_TYPE, contentType, CRLF).getBytes());
+            outputStream.write(CRLF.getBytes());
+            outputStream.flush();
         }
     }
 

@@ -7,12 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Main {
-    public static final String USER_AGENT = "User-Agent";
-    public static final String CONTENT_TYPE = "Content-Type";
-    public static final String CONTENT_LENGTH = "Content-Length";
-    public static final String CONTENT_ENCODING = "Content-Encoding";
-    public static final String ACCEPT_ENCODING = "Accept-Encoding";
-    public static final String CONNECTION = "Connection";
+
     public static final String CONNECTION_CLOSE = "close";
     static final String CONTENT_ENCODING_DEFAULT = "text/plain";
     static final String DEFAULT_CONTENT_TYPE = "text/plain";
@@ -28,7 +23,6 @@ public class Main {
     public static final String REQUEST_LINE = "requestLine";
     public static final String REQUEST_HEADERS = "headers";
     public static final String REQUEST_BODY = "body";
-    public static final String CONTENT_LENGTH_HEADER = "Content-Length: ";
     public static final String[] SUPPORTED_ENCODINGS = new String[]{"gzip"};
 
 
